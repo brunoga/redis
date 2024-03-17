@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -16,21 +17,30 @@ func TestRWLock(t *testing.T) {
 
 	rwLock := NewRWLock(client, "test", 1*time.Second)
 
-	for i := 0; i < 10; i++ {
-		err := rwLock.RLock(context.Background())
-		if err != nil {
-			t.Error(err)
-		}
-		defer func() {
-			err = rwLock.RUnlock(context.Background())
-			if err != nil {
-				t.Error(err)
-			}
-		}()
-	}
+	ctx := context.Background()
 
-	//err := rwLock.RUnlock(context.Background())
-	//if err != nil {
-	//	t.Error(err)
-	//}
+	if err := rwLock.Lock(ctx); err != nil {
+		t.Fatalf("Lock failed: %v", err)
+	}
+	fmt.Println("Writer lock acquired.")
+
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		if err := rwLock.Unlock(ctx); err != nil {
+			t.Errorf("Unlock failed: %v", err)
+		}
+		fmt.Println("Writer lock unlocked.")
+	}()
+
+	if err := rwLock.RLock(ctx); err != nil {
+		t.Errorf("Lock failed: %v", err)
+	}
+	fmt.Println("Reader lock acquired.")
+	defer func() {
+		err := rwLock.RUnlock(ctx)
+		if err != nil {
+			t.Fatalf("Unlock failed: %v", err)
+		}
+		fmt.Println("Reader lock unlocked.")
+	}()
 }

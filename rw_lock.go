@@ -33,73 +33,39 @@ func NewRWLock(client *redis.Client, id string,
 
 // Lock acquires a write lock.
 func (r *RWLock) Lock(ctx context.Context) error {
-	// TODO(bga): Loop until lock is acquired or context is done.
-	return r.TryLock(ctx)
-}
+	for {
+		result, err := r.tryLock(ctx)
+		if err != nil {
+			return err
+		}
 
-// TryLock tries to acquire a write lock.
-func (r *RWLock) TryLock(ctx context.Context) error {
-	result, err := r.runRedisScript(ctx, internal.LockScript, []string{
-		readerCountPrefix + r.id,
-		writerFlagPrefix + r.id,
-	}, r.expiration.Milliseconds())
-	if err != nil {
-		return err
-	}
+		if result != -1 {
+			break
+		}
 
-	if result == -1 {
-		return fmt.Errorf("can´t acquire write lock")
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	return nil
+}
+
+// TryLock tries to acquire a write lock.
+func (r *RWLock) TryLock(ctx context.Context) (bool, error) {
+	result, err := r.tryLock(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	if result == -1 {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // Unlock releases a write lock.
 func (r *RWLock) Unlock(ctx context.Context) error {
-	result, err := r.runRedisScript(ctx, internal.UnlockScript, []string{
-		writerFlagPrefix + r.id,
-	})
-	if err != nil {
-		return err
-	}
-
-	if result == -1 {
-		return fmt.Errorf("can't release write lock")
-	}
-
-	return nil
-}
-
-// RLock acquires a read lock.
-func (r *RWLock) RLock(ctx context.Context) error {
-	// TODO(bga): Loop until lock is acquired or context is done.
-	return r.TryRLock(ctx)
-}
-
-// TryRLock tries to acquire a read lock.
-func (r *RWLock) TryRLock(ctx context.Context) error {
-	result, err := r.runRedisScript(ctx, internal.RLockScript, []string{
-		readerCountPrefix + r.id,
-		writerFlagPrefix + r.id,
-	}, r.expiration.Milliseconds())
-	if err != nil {
-		return err
-	}
-
-	if result == -1 {
-		return fmt.Errorf("can´t acquire read lock")
-	}
-
-	fmt.Printf("Readers after rlock: %d\n", result)
-
-	return nil
-}
-
-// RUnlock releases a read lock.
-func (r *RWLock) RUnlock(ctx context.Context) error {
-	result, err := r.runRedisScript(ctx, internal.RUnlockScript, []string{
-		readerCountPrefix + r.id,
-	})
+	result, err := r.unlock(ctx)
 	if err != nil {
 		return err
 	}
@@ -108,9 +74,79 @@ func (r *RWLock) RUnlock(ctx context.Context) error {
 		return fmt.Errorf("too many unlocks")
 	}
 
-	fmt.Printf("Readers after runlock: %d\n", result)
+	return nil
+}
+
+// RLock acquires a read lock.
+func (r *RWLock) RLock(ctx context.Context) error {
+	for {
+		result, err := r.tryRLock(ctx)
+		if err != nil {
+			return err
+		}
+
+		if result != -1 {
+			break
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
 
 	return nil
+}
+
+// TryRLock tries to acquire a read lock.
+func (r *RWLock) TryRLock(ctx context.Context) (bool, error) {
+	result, err := r.tryRLock(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	if result == -1 {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// RUnlock releases a read lock.
+func (r *RWLock) RUnlock(ctx context.Context) error {
+	result, err := r.rUnlock(ctx)
+	if err != nil {
+		return err
+	}
+
+	if result == -1 {
+		return fmt.Errorf("too many unlocks")
+	}
+
+	return nil
+}
+
+func (r *RWLock) tryLock(ctx context.Context) (int, error) {
+	return r.runRedisScript(ctx, internal.LockScript, []string{
+		readerCountPrefix + r.id,
+		writerFlagPrefix + r.id,
+	}, r.expiration.Milliseconds())
+}
+
+func (r *RWLock) tryRLock(ctx context.Context) (int, error) {
+	return r.runRedisScript(ctx, internal.RLockScript, []string{
+		readerCountPrefix + r.id,
+		writerFlagPrefix + r.id,
+	}, r.expiration.Milliseconds())
+}
+
+func (r *RWLock) unlock(ctx context.Context) (int, error) {
+	return r.runRedisScript(ctx, internal.UnlockScript, []string{
+		writerFlagPrefix + r.id,
+	})
+}
+
+func (r *RWLock) rUnlock(ctx context.Context) (int, error) {
+	return r.runRedisScript(ctx, internal.RUnlockScript, []string{
+		readerCountPrefix + r.id,
+	})
 }
 
 func (r *RWLock) runRedisScript(ctx context.Context, script *redis.Script,
@@ -124,6 +160,8 @@ func (r *RWLock) runRedisScript(ctx context.Context, script *redis.Script,
 	if err != nil {
 		return -1, fmt.Errorf("failed reading result as int: %w", err)
 	}
+
+	fmt.Println("result", result)
 
 	return result, nil
 }
