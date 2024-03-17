@@ -17,7 +17,7 @@ const (
 
 // RWLock is a Redis-based implementation of a distributed read-write lock.
 type RWLock struct {
-	client     *redis.Client
+	client     redis.Scripter
 	id         string
 	expiration time.Duration
 
@@ -31,7 +31,7 @@ type RWLock struct {
 }
 
 // NewRWLock creates a new RWLock instance.
-func NewRWLock(client *redis.Client, id string,
+func NewRWLock(client redis.Scripter, id string,
 	expiration time.Duration) *RWLock {
 	return &RWLock{
 		client:         client,
