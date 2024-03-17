@@ -161,7 +161,5 @@ func (r *RWLock) runRedisScript(ctx context.Context, script *redis.Script,
 		return -1, fmt.Errorf("failed reading result as int: %w", err)
 	}
 
-	fmt.Println("result", result)
-
 	return result, nil
 }

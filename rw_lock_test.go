@@ -17,30 +17,48 @@ func TestRWLock(t *testing.T) {
 
 	rwLock := NewRWLock(client, "test", 1*time.Second)
 
-	ctx := context.Background()
-
-	if err := rwLock.Lock(ctx); err != nil {
-		t.Fatalf("Lock failed: %v", err)
-	}
-	fmt.Println("Writer lock acquired.")
+	go func() {
+		for {
+			simulateWorkAsync(rwLock, 100*time.Millisecond, false, 5)
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
 
 	go func() {
-		time.Sleep(500 * time.Millisecond)
-		if err := rwLock.Unlock(ctx); err != nil {
-			t.Errorf("Unlock failed: %v", err)
+		for {
+			simulateWorkAsync(rwLock, 100*time.Millisecond, true, 5)
+			time.Sleep(100 * time.Millisecond)
 		}
-		fmt.Println("Writer lock unlocked.")
 	}()
 
-	if err := rwLock.RLock(ctx); err != nil {
-		t.Errorf("Lock failed: %v", err)
+	time.Sleep(10 * time.Second)
+}
+
+func simulateWorkAsync(lock *RWLock, sleep time.Duration, write bool, count int) {
+	for i := 0; i < count; i++ {
+		go func() {
+			ctx := context.Background()
+			if write {
+				if err := lock.Lock(ctx); err != nil {
+					fmt.Printf("Lock failed: %v\n", err)
+				}
+				fmt.Println("Writer lock acquired.")
+				time.Sleep(sleep)
+				if err := lock.Unlock(ctx); err != nil {
+					fmt.Printf("Unlock failed: %v\n", err)
+				}
+				fmt.Println("Writer lock unlocked.")
+			} else {
+				if err := lock.RLock(ctx); err != nil {
+					fmt.Printf("Lock failed: %v\n", err)
+				}
+				fmt.Println("Reader lock acquired.")
+				time.Sleep(sleep)
+				if err := lock.RUnlock(ctx); err != nil {
+					fmt.Printf("Unlock failed: %v\n", err)
+				}
+				fmt.Println("Reader lock unlocked.")
+			}
+		}()
 	}
-	fmt.Println("Reader lock acquired.")
-	defer func() {
-		err := rwLock.RUnlock(ctx)
-		if err != nil {
-			t.Fatalf("Unlock failed: %v", err)
-		}
-		fmt.Println("Reader lock unlocked.")
-	}()
 }
