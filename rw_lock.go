@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/brunoga/redis/internal"
@@ -10,8 +11,8 @@ import (
 )
 
 const (
-	readerCountPrefix = "reader_count_"
-	writerFlagPrefix  = "writer_flag_"
+	readerCountKeyPrefix = "reader_count_"
+	writerCountKeyPrefix = "writer_count_"
 )
 
 // RWLock is a Redis-based implementation of a distributed read-write lock.
@@ -19,15 +20,26 @@ type RWLock struct {
 	client     *redis.Client
 	id         string
 	expiration time.Duration
+
+	readerCountKey string
+	writerCountKey string
+
+	refreshCh chan struct{}
+
+	m          sync.Mutex
+	refreshing bool
 }
 
 // NewRWLock creates a new RWLock instance.
 func NewRWLock(client *redis.Client, id string,
 	expiration time.Duration) *RWLock {
 	return &RWLock{
-		client:     client,
-		id:         id,
-		expiration: expiration,
+		client:         client,
+		id:             id,
+		expiration:     expiration,
+		readerCountKey: readerCountKeyPrefix + id,
+		writerCountKey: writerCountKeyPrefix + id,
+		refreshCh:      make(chan struct{}),
 	}
 }
 
@@ -45,6 +57,8 @@ func (r *RWLock) Lock(ctx context.Context) error {
 
 		time.Sleep(100 * time.Millisecond)
 	}
+
+	r.startRefreshLoop(ctx)
 
 	return nil
 }
@@ -74,6 +88,8 @@ func (r *RWLock) Unlock(ctx context.Context) error {
 		return fmt.Errorf("too many unlocks")
 	}
 
+	r.stopRefreshLoop()
+
 	return nil
 }
 
@@ -91,6 +107,8 @@ func (r *RWLock) RLock(ctx context.Context) error {
 
 		time.Sleep(100 * time.Millisecond)
 	}
+
+	r.startRefreshLoop(ctx)
 
 	return nil
 }
@@ -120,33 +138,77 @@ func (r *RWLock) RUnlock(ctx context.Context) error {
 		return fmt.Errorf("too many unlocks")
 	}
 
+	r.stopRefreshLoop()
+
 	return nil
 }
 
 func (r *RWLock) tryLock(ctx context.Context) (int, error) {
 	return r.runRedisScript(ctx, internal.LockScript, []string{
-		readerCountPrefix + r.id,
-		writerFlagPrefix + r.id,
+		r.readerCountKey,
+		r.writerCountKey,
 	}, r.expiration.Milliseconds())
 }
 
 func (r *RWLock) tryRLock(ctx context.Context) (int, error) {
 	return r.runRedisScript(ctx, internal.RLockScript, []string{
-		readerCountPrefix + r.id,
-		writerFlagPrefix + r.id,
+		r.readerCountKey,
+		r.writerCountKey,
 	}, r.expiration.Milliseconds())
 }
 
 func (r *RWLock) unlock(ctx context.Context) (int, error) {
 	return r.runRedisScript(ctx, internal.UnlockScript, []string{
-		writerFlagPrefix + r.id,
+		r.writerCountKey,
 	})
 }
 
 func (r *RWLock) rUnlock(ctx context.Context) (int, error) {
 	return r.runRedisScript(ctx, internal.RUnlockScript, []string{
-		readerCountPrefix + r.id,
+		r.readerCountKey,
 	})
+}
+
+func (r *RWLock) refresh(ctx context.Context) {
+	r.runRedisScript(ctx, internal.RefreshScript, []string{
+		r.readerCountKey,
+		r.writerCountKey,
+	}, r.expiration.Milliseconds())
+}
+
+func (r *RWLock) startRefreshLoop(ctx context.Context) {
+	r.m.Lock()
+	if !r.refreshing {
+		r.refreshing = true
+		go r.refreshLoop(ctx)
+	}
+	r.m.Unlock()
+}
+
+func (r *RWLock) stopRefreshLoop() {
+	r.m.Lock()
+	if r.refreshing {
+		r.refreshing = false
+		r.refreshCh <- struct{}{}
+	}
+	r.m.Unlock()
+}
+
+func (r *RWLock) refreshLoop(ctx context.Context) {
+	ticker := time.NewTicker(r.expiration / 2)
+	defer ticker.Stop()
+
+L:
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			r.refresh(ctx)
+		case <-r.refreshCh:
+			break L
+		}
+	}
 }
 
 func (r *RWLock) runRedisScript(ctx context.Context, script *redis.Script,

@@ -62,3 +62,27 @@ func simulateWorkAsync(lock *RWLock, sleep time.Duration, write bool, count int)
 		}()
 	}
 }
+
+func TestRWLock_Refresh(t *testing.T) {
+	client := redis.NewClient(&redis.Options{
+		Network: "tcp",
+		Addr:    "localhost:6379",
+	})
+
+	rwLock := NewRWLock(client, "test", 1*time.Second)
+
+	err := rwLock.Lock(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rwLock.Unlock(context.Background())
+
+	time.Sleep(2 * time.Second)
+	ok, err := rwLock.TryLock(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("TryRLock succeeded")
+	}
+}

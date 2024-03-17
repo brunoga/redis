@@ -18,6 +18,9 @@ var rlockScript string
 //go:embed lua/runlock_script.lua
 var runlockScript string
 
+//go:embed lua/refresh_script.lua
+var refreshScript string
+
 var (
 	// LockScript is the Lua script for acquiring a lock.
 	LockScript = redis.NewScript(lockScript)
@@ -30,4 +33,7 @@ var (
 
 	// RUnlockScript is the Lua script for releasing a read lock.
 	RUnlockScript = redis.NewScript(runlockScript)
+
+	// RefreshScript is the Lua script for refreshing a lock.
+	RefreshScript = redis.NewScript(refreshScript)
 )
