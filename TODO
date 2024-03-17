@@ -1,5 +1,3 @@
-* Add context cancellation.
-    - Make sure that the context we use have an associated deadline.
 * Add more retry logic.
     - Exponential backoff.
     - Maximum number of attempts.

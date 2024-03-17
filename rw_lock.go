@@ -45,17 +45,16 @@ func NewRWLock(client *redis.Client, id string,
 
 // Lock acquires a write lock.
 func (r *RWLock) Lock(ctx context.Context) error {
-	for {
+	err := lockLoop(ctx, func(ctx context.Context) (bool, error) {
 		result, err := r.tryLock(ctx)
 		if err != nil {
-			return err
+			return false, err
 		}
 
-		if result != -1 {
-			break
-		}
-
-		time.Sleep(100 * time.Millisecond)
+		return result != -1, nil
+	})
+	if err != nil {
+		return err
 	}
 
 	r.startRefreshLoop(ctx)
@@ -95,17 +94,16 @@ func (r *RWLock) Unlock(ctx context.Context) error {
 
 // RLock acquires a read lock.
 func (r *RWLock) RLock(ctx context.Context) error {
-	for {
+	err := lockLoop(ctx, func(ctx context.Context) (bool, error) {
 		result, err := r.tryRLock(ctx)
 		if err != nil {
-			return err
+			return false, err
 		}
 
-		if result != -1 {
-			break
-		}
-
-		time.Sleep(100 * time.Millisecond)
+		return result != -1, nil
+	})
+	if err != nil {
+		return err
 	}
 
 	r.startRefreshLoop(ctx)
@@ -174,6 +172,27 @@ func (r *RWLock) refresh(ctx context.Context) {
 		r.readerCountKey,
 		r.writerCountKey,
 	}, r.expiration.Milliseconds())
+}
+
+func lockLoop(ctx context.Context, f func(context.Context) (bool, error)) error {
+	// TODO(bga): Make this configurable.
+	ticker := time.NewTicker(10 * time.Millisecond)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			ok, err := f(ctx)
+			if err != nil {
+				return err
+			}
+
+			if ok {
+				return nil
+			}
+		}
+	}
 }
 
 func (r *RWLock) startRefreshLoop(ctx context.Context) {
