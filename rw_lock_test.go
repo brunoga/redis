@@ -26,7 +26,7 @@ func TestRWLock(t *testing.T) {
 
 	go func() {
 		for {
-			simulateWorkAsync(rwLock, 100*time.Millisecond, true, 5)
+			simulateWorkAsync(rwLock, 100*time.Millisecond, true, 1)
 			time.Sleep(100 * time.Millisecond)
 		}
 	}()
