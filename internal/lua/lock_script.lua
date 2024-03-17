@@ -14,6 +14,7 @@ if writer_count == false then
     -- There is no active or waiting writer.
     if reader_count == false then
         -- There are no active readers either. Acquire the write lock.
+        --redis.log(redis.LOG_NOTICE, 'Acquiring write lock.')
         redis.call('SET', KEYS[2], 1, 'PX', ARGV[1])
         return 1 -- 1 writer.
     else
@@ -30,6 +31,7 @@ writer_count = tonumber(writer_count)
 if writer_count == 0 and reader_count == false then
     -- There is a waiting writer which might as well be us and there are no
     -- readers. Acquire the write lock.
+    --redis.log(redis.LOG_NOTICE, 'Acquiring write lock.')
     redis.call('SET', KEYS[2], 1, 'PX', ARGV[1])
     return 1 -- 1 writer.
 end

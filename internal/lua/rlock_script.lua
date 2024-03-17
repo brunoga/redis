@@ -12,4 +12,5 @@ if redis.call('EXISTS', KEYS[2]) == 1 then
 end
 
 -- Increment the reader count and return the new value.
+--redis.log(redis.LOG_NOTICE, 'Acquiring read lock.')
 return redis.call('INCR', KEYS[1])

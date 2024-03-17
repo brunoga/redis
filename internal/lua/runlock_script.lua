@@ -18,4 +18,5 @@ if result == 0 then
 end
 
 -- Return number of readers after decrementing.
+--redis.log(redis.LOG_NOTICE, 'Released read lock.')
 return result

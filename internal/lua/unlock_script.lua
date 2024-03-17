@@ -12,4 +12,5 @@ if redis.call("DEL", KEYS[1]) == 0 then
     return redis.error_reply("Failed to remove writer count key.")
 end
 
+--redis.log(redis.LOG_NOTICE, 'Released write lock.')
 return 0 -- 0 writers.
