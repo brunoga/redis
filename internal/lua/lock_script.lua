@@ -4,13 +4,13 @@
 -- ARGV[1] - expiration time in milliseconds.
 
 -- Get reader/writer counts.
-local writer_count = redis.call('GET', KEYS[1])
-local reader_count = redis.call('GET', KEYS[2])
+local reader_count = redis.call('GET', KEYS[1])
+local writer_count = redis.call('GET', KEYS[2])
 
 
-if writer_count == nil then
+if writer_count == false then
     -- There is no active or waiting writer.
-    if reader_count == nil then
+    if reader_count == false then
         -- There are no active readers either. Acquire the write lock.
         redis.call('SET', KEYS[2], 1, 'PX', ARGV[1])
         return 1 -- 1 writer.
@@ -29,5 +29,5 @@ if writer_count == 0 then
     return 1 -- 1 writer.
 end
     
--- There is an active writer. We can not acquire the write lock.
+ -- There is an active writer. We can not acquire the write lock.
 return -1

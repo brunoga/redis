@@ -2,7 +2,7 @@
 -- KEYS[1] - writer count.
 
 local writer_count = redis.call('GET', KEYS[1])
-if writer_count == nil or writer_count == 0 then
+if writer_count == false or writer_count == 0 then
     -- There is no active writer.
     return -1
 end
