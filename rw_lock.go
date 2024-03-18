@@ -92,6 +92,11 @@ func (r *RWLock) Unlock(ctx context.Context) error {
 	return nil
 }
 
+// Key returns the writer count key for this lock.
+func (r *RWLock) Key() string {
+	return r.writerCountKey
+}
+
 // RLock acquires a read lock.
 func (r *RWLock) RLock(ctx context.Context) error {
 	err := lockLoop(ctx, func(ctx context.Context) (bool, error) {
@@ -139,6 +144,11 @@ func (r *RWLock) RUnlock(ctx context.Context) error {
 	r.stopRefreshLoop()
 
 	return nil
+}
+
+// Key returns the writer count key for this lock.
+func (r *RWLock) RKey() string {
+	return r.readerCountKey
 }
 
 func (r *RWLock) tryLock(ctx context.Context) (int, error) {
