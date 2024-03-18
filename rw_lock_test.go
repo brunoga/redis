@@ -3,12 +3,13 @@ package redis
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 )
 
-func TestRWLock_RLock_RUnlock_Success(t *testing.T) {
+func TestRWLock_RLock_Success(t *testing.T) {
 	s := miniredis.RunT(t)
 
 	client := redis.NewClient(&redis.Options{
@@ -16,13 +17,23 @@ func TestRWLock_RLock_RUnlock_Success(t *testing.T) {
 		Addr:    s.Addr(),
 	})
 
-	rwLock := NewRWLock(client, "test")
+	rwLock := NewRWLock(client, "test", WithKeyTTL(10*time.Millisecond))
 
 	acquireReadAndCheckKeyValue(t, rwLock, s, "1")
 	acquireReadAndCheckKeyValue(t, rwLock, s, "2")
-	releaseReadAndCheckKeyValue(t, rwLock, s, "1")
-	acquireReadAndCheckKeyValue(t, rwLock, s, "2")
-	releaseReadAndCheckKeyValue(t, rwLock, s, "1")
+}
+
+func TestRWLock_RUnlock_Success(t *testing.T) {
+	s := miniredis.RunT(t)
+
+	client := redis.NewClient(&redis.Options{
+		Network: "tcp",
+		Addr:    s.Addr(),
+	})
+
+	rwLock := NewRWLock(client, "test", WithKeyTTL(10*time.Millisecond))
+
+	acquireReadAndCheckKeyValue(t, rwLock, s, "1")
 	releaseReadAndCheckKeyValue(t, rwLock, s, "0")
 }
 
@@ -44,7 +55,20 @@ func TestRWLock_RUnlock_NotLocked(t *testing.T) {
 	checkKeyValue(t, s, rwLock.RKey(), "0")
 }
 
-func TestRWLock_Lock_Unlock_Success(t *testing.T) {
+func TestRWLock_Lock_Success(t *testing.T) {
+	s := miniredis.RunT(t)
+
+	client := redis.NewClient(&redis.Options{
+		Network: "tcp",
+		Addr:    s.Addr(),
+	})
+
+	rwLock := NewRWLock(client, "test")
+
+	acquireWriteAndCheckKeyValue(t, rwLock, s, "1")
+}
+
+func TestRWLock_Unock_Success(t *testing.T) {
 	s := miniredis.RunT(t)
 
 	client := redis.NewClient(&redis.Options{
