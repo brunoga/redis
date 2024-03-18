@@ -3,9 +3,6 @@
 -- KEYS[2] - writer count.
 -- ARGV[1] - expiration time in milliseconds.
 
--- Opportunistically set the expiration time for the writer count key.
-redis.call('PEXPIRE', KEYS[2], ARGV[1])
-
 -- Get reader/writer counts.
 local reader_count = redis.call('GET', KEYS[1])
 local writer_count = redis.call('GET', KEYS[2])
