@@ -17,9 +17,12 @@ const (
 
 // RWLock is a Redis-based implementation of a distributed read-write lock.
 type RWLock struct {
-	client     redis.Scripter
-	id         string
-	expiration time.Duration
+	client redis.Scripter
+	id     string
+
+	keyTTL      time.Duration
+	retryDelay  time.Duration
+	maxAttempts uint8
 
 	readerCountKey string
 	writerCountKey string
@@ -32,20 +35,28 @@ type RWLock struct {
 
 // NewRWLock creates a new RWLock instance.
 func NewRWLock(client redis.Scripter, id string,
-	expiration time.Duration) *RWLock {
-	return &RWLock{
+	opts ...Option) *RWLock {
+	rwLock := &RWLock{
 		client:         client,
 		id:             id,
-		expiration:     expiration,
+		keyTTL:         500 * time.Millisecond,
+		retryDelay:     50 * time.Millisecond,
+		maxAttempts:    20, // Around 1 second given the 50 ms retry delay.
 		readerCountKey: readerCountKeyPrefix + id,
 		writerCountKey: writerCountKeyPrefix + id,
 		refreshCh:      make(chan struct{}),
 	}
+
+	for _, opt := range opts {
+		opt.apply(rwLock)
+	}
+
+	return rwLock
 }
 
 // Lock acquires a write lock.
 func (r *RWLock) Lock(ctx context.Context) error {
-	err := lockLoop(ctx, func(ctx context.Context) (bool, error) {
+	err := r.lockLoop(ctx, func(ctx context.Context) (bool, error) {
 		result, err := r.tryLock(ctx)
 		if err != nil {
 			return false, err
@@ -99,7 +110,7 @@ func (r *RWLock) Key() string {
 
 // RLock acquires a read lock.
 func (r *RWLock) RLock(ctx context.Context) error {
-	err := lockLoop(ctx, func(ctx context.Context) (bool, error) {
+	err := r.lockLoop(ctx, func(ctx context.Context) (bool, error) {
 		result, err := r.tryRLock(ctx)
 		if err != nil {
 			return false, err
@@ -155,7 +166,7 @@ func (r *RWLock) tryLock(ctx context.Context) (int, error) {
 	result, err := r.runRedisScript(ctx, internal.LockScript, []string{
 		r.readerCountKey,
 		r.writerCountKey,
-	}, r.expiration.Milliseconds())
+	}, r.keyTTL.Milliseconds())
 
 	if err == nil && result == -1 {
 		// Refresh writer count.
@@ -169,7 +180,7 @@ func (r *RWLock) tryRLock(ctx context.Context) (int, error) {
 	result, err := r.runRedisScript(ctx, internal.RLockScript, []string{
 		r.readerCountKey,
 		r.writerCountKey,
-	}, r.expiration.Milliseconds())
+	}, r.keyTTL.Milliseconds())
 
 	if err == nil && result == -1 {
 		// Refresh reader count.
@@ -193,14 +204,22 @@ func (r *RWLock) rUnlock(ctx context.Context) (int, error) {
 
 func (r *RWLock) refresh(ctx context.Context, keys []string) {
 	r.runRedisScript(ctx, internal.RefreshScript, keys,
-		r.expiration.Milliseconds())
+		r.keyTTL.Milliseconds())
 }
 
-func lockLoop(ctx context.Context, f func(context.Context) (bool, error)) error {
-	// TODO(bga): Make this configurable.
-	ticker := time.NewTicker(10 * time.Millisecond)
+func (r *RWLock) lockLoop(ctx context.Context,
+	f func(context.Context) (bool, error)) error {
+	ticker := time.NewTicker(r.retryDelay)
+
+	var count uint8
 
 	for {
+		if count == r.maxAttempts {
+			return fmt.Errorf("not locked")
+		}
+
+		count++
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -236,7 +255,7 @@ func (r *RWLock) stopRefreshLoop() {
 }
 
 func (r *RWLock) refreshLoop(ctx context.Context) {
-	ticker := time.NewTicker(r.expiration / 2)
+	ticker := time.NewTicker(r.keyTTL / 2)
 	defer ticker.Stop()
 
 L:

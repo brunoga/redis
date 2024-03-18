@@ -1,6 +1,2 @@
 * Add more retry logic.
     - Exponential backoff.
-    - Maximum number of attempts.
-    - Customizable retry delay.
-* Write actual real tests.
-    - We probably need a Redis mock or something.

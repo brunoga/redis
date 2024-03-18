@@ -3,7 +3,6 @@ package redis
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
@@ -17,7 +16,7 @@ func TestRWLock_RLock_RUnlock_Success(t *testing.T) {
 		Addr:    s.Addr(),
 	})
 
-	rwLock := NewRWLock(client, "test", 100*time.Millisecond)
+	rwLock := NewRWLock(client, "test")
 
 	acquireReadAndCheckKeyValue(t, rwLock, s, "1")
 	acquireReadAndCheckKeyValue(t, rwLock, s, "2")
@@ -35,7 +34,7 @@ func TestRWLock_RUnlock_NotLocked(t *testing.T) {
 		Addr:    s.Addr(),
 	})
 
-	rwLock := NewRWLock(client, "test", 100*time.Millisecond)
+	rwLock := NewRWLock(client, "test")
 
 	err := rwLock.RUnlock(context.Background())
 	if err == nil {
@@ -53,7 +52,7 @@ func TestRWLock_Lock_Unlock_Success(t *testing.T) {
 		Addr:    s.Addr(),
 	})
 
-	rwLock := NewRWLock(client, "test", 100*time.Millisecond)
+	rwLock := NewRWLock(client, "test")
 
 	acquireWriteAndCheckKeyValue(t, rwLock, s, "1")
 	releaseWriteAndCheckKeyValue(t, rwLock, s, "0")
@@ -67,7 +66,7 @@ func TestRWLock_Unlock_NotLocked(t *testing.T) {
 		Addr:    s.Addr(),
 	})
 
-	rwLock := NewRWLock(client, "test", 100*time.Millisecond)
+	rwLock := NewRWLock(client, "test")
 
 	err := rwLock.Unlock(context.Background())
 	if err == nil {
