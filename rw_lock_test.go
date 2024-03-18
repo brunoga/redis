@@ -68,7 +68,7 @@ func TestRWLock_Lock_Success(t *testing.T) {
 	acquireWriteAndCheckKeyValue(t, rwLock, s, "1")
 }
 
-func TestRWLock_Unock_Success(t *testing.T) {
+func TestRWLock_Unlock_Success(t *testing.T) {
 	s := miniredis.RunT(t)
 
 	client := redis.NewClient(&redis.Options{
