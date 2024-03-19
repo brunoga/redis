@@ -21,9 +21,9 @@ type RWLock struct {
 	id     string
 
 	keyTTL      time.Duration
-	retryDelay  time.Duration
 	maxAttempts uint8
 	autoRefresh bool
+	retrier     Retrier
 
 	readerCountKey string
 	writerCountKey string
@@ -41,8 +41,9 @@ func NewRWLock(client redis.Scripter, id string,
 		client:         client,
 		id:             id,
 		keyTTL:         500 * time.Millisecond,
-		retryDelay:     50 * time.Millisecond,
 		maxAttempts:    20, // Around 1 second given the 50 ms retry delay.
+		autoRefresh:    true,
+		retrier:        NewFixedRetrier(50 * time.Millisecond),
 		readerCountKey: readerCountKeyPrefix + id,
 		writerCountKey: writerCountKeyPrefix + id,
 		refreshCh:      make(chan struct{}),
@@ -240,8 +241,6 @@ func (r *RWLock) refresh(ctx context.Context, keys []string) {
 
 func (r *RWLock) lockLoop(ctx context.Context,
 	f func(context.Context) (bool, error)) error {
-	ticker := time.NewTicker(r.retryDelay)
-
 	var count uint8
 
 	for {
@@ -254,7 +253,7 @@ func (r *RWLock) lockLoop(ctx context.Context,
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
+		case <-time.After(r.retrier.NextDelay()):
 			ok, err := f(ctx)
 			if err != nil {
 				return err

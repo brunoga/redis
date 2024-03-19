@@ -16,16 +16,6 @@ func WithKeyTTL(keyTTL time.Duration) Option {
 	return keyTTLOption(keyTTL)
 }
 
-type retryDelayOption time.Duration
-
-func (opt retryDelayOption) apply(rwLock *RWLock) {
-	rwLock.retryDelay = time.Duration(opt)
-}
-
-func WithRetryDelay(retryDelay time.Duration) Option {
-	return retryDelayOption(retryDelay)
-}
-
 type maxAttemptsOption uint8
 
 func (opt maxAttemptsOption) apply(rwLock *RWLock) {
@@ -44,4 +34,18 @@ func (opt autoRefreshOption) apply(rwLock *RWLock) {
 
 func WithAutoRefresh(autoRefresh bool) Option {
 	return autoRefreshOption(autoRefresh)
+}
+
+type retrierOption struct {
+	retrier Retrier
+}
+
+func (opt retrierOption) apply(rwLock *RWLock) {
+	rwLock.retrier = opt.retrier
+}
+
+func WithRetrier(retrier Retrier) Option {
+	return retrierOption{
+		retrier: retrier,
+	}
 }
