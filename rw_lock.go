@@ -70,9 +70,7 @@ func (r *RWLock) Lock(ctx context.Context) error {
 		return err
 	}
 
-	if r.autoRefresh {
-		r.startRefreshLoop(ctx)
-	}
+	r.startRefreshLoop(ctx)
 
 	return nil
 }
@@ -88,9 +86,7 @@ func (r *RWLock) TryLock(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	if r.autoRefresh {
-		r.startRefreshLoop(ctx)
-	}
+	r.startRefreshLoop(ctx)
 
 	return true, nil
 }
@@ -106,9 +102,7 @@ func (r *RWLock) Unlock(ctx context.Context) error {
 		return fmt.Errorf("too many unlocks")
 	}
 
-	if r.autoRefresh {
-		r.stopRefreshLoop()
-	}
+	r.stopRefreshLoop()
 
 	return nil
 }
@@ -132,9 +126,7 @@ func (r *RWLock) RLock(ctx context.Context) error {
 		return err
 	}
 
-	if r.autoRefresh {
-		r.startRefreshLoop(ctx)
-	}
+	r.startRefreshLoop(ctx)
 
 	return nil
 }
@@ -150,9 +142,7 @@ func (r *RWLock) TryRLock(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	if r.autoRefresh {
-		r.startRefreshLoop(ctx)
-	}
+	r.startRefreshLoop(ctx)
 
 	return true, nil
 }
@@ -168,9 +158,7 @@ func (r *RWLock) RUnlock(ctx context.Context) error {
 		return fmt.Errorf("too many unlocks")
 	}
 
-	if r.autoRefresh {
-		r.stopRefreshLoop()
-	}
+	r.stopRefreshLoop()
 
 	return nil
 }
@@ -267,6 +255,11 @@ func (r *RWLock) lockLoop(ctx context.Context,
 }
 
 func (r *RWLock) startRefreshLoop(ctx context.Context) {
+	if !r.autoRefresh {
+		// Not auto refreshing.
+		return
+	}
+
 	r.m.Lock()
 	if !r.refreshing {
 		r.refreshing = true
@@ -276,6 +269,11 @@ func (r *RWLock) startRefreshLoop(ctx context.Context) {
 }
 
 func (r *RWLock) stopRefreshLoop() {
+	if !r.autoRefresh {
+		// Not auto refreshing.
+		return
+	}
+
 	r.m.Lock()
 	if r.refreshing {
 		r.refreshing = false

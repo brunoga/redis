@@ -100,6 +100,58 @@ func TestRWLock_Unlock_NotLocked(t *testing.T) {
 	checkKeyValue(t, s, rwLock.Key(), "0")
 }
 
+func TestRWLock_AutoRefresh_NoKeyExpirationAfterLock(t *testing.T) {
+	s := miniredis.RunT(t)
+
+	client := redis.NewClient(&redis.Options{
+		Network: "tcp",
+		Addr:    s.Addr(),
+	})
+
+	rwLock := NewRWLock(client, "test", WithKeyTTL(10*time.Millisecond),
+		WithAutoRefresh(true))
+
+	err := rwLock.Lock(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Advance Redis time by 6 milisseconds amnd also sleep for the same amount
+	// so that the refresh look can catch up.
+	s.FastForward(6 * time.Millisecond)
+	time.Sleep(6 * time.Millisecond)
+
+	// Do it again. If key was not refreshed, it should be expired.
+	s.FastForward(6 * time.Millisecond)
+	time.Sleep(6 * time.Millisecond)
+
+	// Make sure the key still exist and has the correct value even past the
+	// original TTL.
+	checkKeyValue(t, s, rwLock.Key(), "1")
+}
+
+func TestRWLock_NoAutoRefresh_KeyExpiration(t *testing.T) {
+	s := miniredis.RunT(t)
+
+	client := redis.NewClient(&redis.Options{
+		Network: "tcp",
+		Addr:    s.Addr(),
+	})
+
+	rwLock := NewRWLock(client, "test", WithKeyTTL(10*time.Millisecond),
+		WithAutoRefresh(false))
+
+	err := rwLock.Lock(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s.FastForward(11 * time.Millisecond)
+
+	// Make sure the key expired.
+	checkKeyValue(t, s, rwLock.Key(), "0")
+}
+
 func acquireReadAndCheckKeyValue(t *testing.T, rwLock *RWLock,
 	s *miniredis.Miniredis, want string) {
 	t.Helper()
