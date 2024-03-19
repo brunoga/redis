@@ -23,6 +23,7 @@ type RWLock struct {
 	keyTTL      time.Duration
 	retryDelay  time.Duration
 	maxAttempts uint8
+	autoRefresh bool
 
 	readerCountKey string
 	writerCountKey string
@@ -68,7 +69,9 @@ func (r *RWLock) Lock(ctx context.Context) error {
 		return err
 	}
 
-	r.startRefreshLoop(ctx)
+	if r.autoRefresh {
+		r.startRefreshLoop(ctx)
+	}
 
 	return nil
 }
@@ -82,6 +85,10 @@ func (r *RWLock) TryLock(ctx context.Context) (bool, error) {
 
 	if result == -1 {
 		return false, nil
+	}
+
+	if r.autoRefresh {
+		r.startRefreshLoop(ctx)
 	}
 
 	return true, nil
@@ -98,7 +105,9 @@ func (r *RWLock) Unlock(ctx context.Context) error {
 		return fmt.Errorf("too many unlocks")
 	}
 
-	r.stopRefreshLoop()
+	if r.autoRefresh {
+		r.stopRefreshLoop()
+	}
 
 	return nil
 }
@@ -122,7 +131,9 @@ func (r *RWLock) RLock(ctx context.Context) error {
 		return err
 	}
 
-	r.startRefreshLoop(ctx)
+	if r.autoRefresh {
+		r.startRefreshLoop(ctx)
+	}
 
 	return nil
 }
@@ -136,6 +147,10 @@ func (r *RWLock) TryRLock(ctx context.Context) (bool, error) {
 
 	if result == -1 {
 		return false, nil
+	}
+
+	if r.autoRefresh {
+		r.startRefreshLoop(ctx)
 	}
 
 	return true, nil
@@ -152,7 +167,9 @@ func (r *RWLock) RUnlock(ctx context.Context) error {
 		return fmt.Errorf("too many unlocks")
 	}
 
-	r.stopRefreshLoop()
+	if r.autoRefresh {
+		r.stopRefreshLoop()
+	}
 
 	return nil
 }
@@ -160,6 +177,20 @@ func (r *RWLock) RUnlock(ctx context.Context) error {
 // Key returns the writer count key for this lock.
 func (r *RWLock) RKey() string {
 	return r.readerCountKey
+}
+
+// Refresh refreshes the reader and writer count keys. If auto-refresh is on,
+// this does not do anything.
+func (r *RWLock) Refresh(ctx context.Context) {
+	if r.autoRefresh {
+		// We are auto-refreshing so no need to manually do it.
+		return
+	}
+
+	r.refresh(ctx, []string{
+		r.readerCountKey,
+		r.writerCountKey,
+	})
 }
 
 func (r *RWLock) tryLock(ctx context.Context) (int, error) {

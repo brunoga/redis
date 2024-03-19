@@ -35,3 +35,13 @@ func (opt maxAttemptsOption) apply(rwLock *RWLock) {
 func WithMaxAttempts(maxAttempts uint8) Option {
 	return maxAttemptsOption(maxAttempts)
 }
+
+type autoRefreshOption bool
+
+func (opt autoRefreshOption) apply(rwLock *RWLock) {
+	rwLock.autoRefresh = bool(opt)
+}
+
+func WithAutoRefresh(autoRefresh bool) Option {
+	return autoRefreshOption(autoRefresh)
+}
