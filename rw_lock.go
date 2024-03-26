@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/brunoga/redis/internal"
+	"github.com/brunoga/redis/retrier"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -23,7 +24,7 @@ type RWLock struct {
 	keyTTL      time.Duration
 	maxAttempts uint8
 	autoRefresh bool
-	retrier     Retrier
+	retrier     retrier.Retrier
 
 	readerCountKey string
 	writerCountKey string
@@ -43,7 +44,7 @@ func NewRWLock(client redis.Scripter, id string,
 		keyTTL:         500 * time.Millisecond,
 		maxAttempts:    20, // Around 1 second given the 50 ms retry delay.
 		autoRefresh:    true,
-		retrier:        NewFixedRetrier(50 * time.Millisecond),
+		retrier:        retrier.NewFixed(50 * time.Millisecond),
 		readerCountKey: readerCountKeyPrefix + id,
 		writerCountKey: writerCountKeyPrefix + id,
 		refreshCh:      make(chan struct{}),

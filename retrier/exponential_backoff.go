@@ -1,30 +1,30 @@
-package redis
+package retrier
 
 import (
 	"math/rand"
 	"time"
 )
 
-// ExponentialBackoffRetrier implements an exponential backoff Retrier.
-type ExponentialBackoffRetrier struct {
+// ExponentialBackoff implements an exponential backoff Retrier.
+type ExponentialBackoff struct {
 	minDelay   time.Duration
 	maxDelay   time.Duration
 	retryCount int
 }
 
-var _ Retrier = (*ExponentialBackoffRetrier)(nil)
+var _ Retrier = (*ExponentialBackoff)(nil)
 
-// NewExponentialBackoffRetrier creates a new ExponentialBackoffRetrier instance.
-func NewExponentialBackoffRetrier(minDelay,
-	maxDelay time.Duration) *ExponentialBackoffRetrier {
-	return &ExponentialBackoffRetrier{
+// NewExponentialBackoff creates a new ExponentialBackoffRetrier instance.
+func NewExponentialBackoff(minDelay,
+	maxDelay time.Duration) *ExponentialBackoff {
+	return &ExponentialBackoff{
 		minDelay: minDelay,
 		maxDelay: maxDelay,
 	}
 }
 
 // NextDelay calculates the next delay using a exponential backoff with jitter.
-func (e *ExponentialBackoffRetrier) NextDelay() time.Duration {
+func (e *ExponentialBackoff) NextDelay() time.Duration {
 	// Calculate exponential delay.
 	expDelay := e.minDelay * time.Duration(1<<e.retryCount)
 
@@ -44,6 +44,6 @@ func (e *ExponentialBackoffRetrier) NextDelay() time.Duration {
 }
 
 // Reset resets the retry count.
-func (e *ExponentialBackoffRetrier) Reset() {
+func (e *ExponentialBackoff) Reset() {
 	e.retryCount = 0
 }

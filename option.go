@@ -1,6 +1,10 @@
 package redis
 
-import "time"
+import (
+	"time"
+
+	"github.com/brunoga/redis/retrier"
+)
 
 type Option interface {
 	apply(*RWLock)
@@ -37,14 +41,14 @@ func WithAutoRefresh(autoRefresh bool) Option {
 }
 
 type retrierOption struct {
-	retrier Retrier
+	retrier retrier.Retrier
 }
 
 func (opt retrierOption) apply(rwLock *RWLock) {
 	rwLock.retrier = opt.retrier
 }
 
-func WithRetrier(retrier Retrier) Option {
+func WithRetrier(retrier retrier.Retrier) Option {
 	return retrierOption{
 		retrier: retrier,
 	}

@@ -1,4 +1,4 @@
-package redis
+package retrier
 
 import "time"
 
